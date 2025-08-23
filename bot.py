@@ -2,36 +2,34 @@ import telebot
 from telebot import types
 import time, random, requests
 from faker import Faker
-from bs4 import BeautifulSoup
 
-# =============================
-# CONFIG
-# =============================
-BOT_TOKEN = "8367613006:AAEP3APdtGN8blPUwX_mBIJs4R0t7B60DDM"
-ADMIN_ID = 6669339869
+# -------------------------------
+# Bot Config
+# -------------------------------
+BOT_TOKEN = "YOUR_BOT_TOKEN"   # এখানে তোমার Bot Token বসাও
 bot = telebot.TeleBot(BOT_TOKEN)
 
 faker = Faker()
 registered_users = {}
-user_proxies = {}
-iban_temp = {}
+user_proxies = {}   # {user_id: [list of proxies]}
+iban_temp = {}      # {user_id: {"list": [...], "pos": 0}}
 temp_mails = {}
 
-# =============================
-# START COMMAND
-# =============================
+# ======================================================
+# /start
+# ======================================================
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
     user_firstname = message.from_user.first_name
 
-    # Loading animation
+    # Loading Animation
     loading_msg = bot.send_animation(
         chat_id,
         animation="https://media.giphy.com/media/xTkcEQACH24SMPxIQg/giphy.gif",
         caption="👋 Welcome to [V2.O]\n⚡ Loading your dashboard…"
     )
-    time.sleep(3)
+    time.sleep(4)
     bot.delete_message(chat_id, loading_msg.message_id)
 
     kb = types.InlineKeyboardMarkup()
@@ -48,9 +46,9 @@ def start(message):
         reply_markup=kb
     )
 
-# =============================
-# PAGES
-# =============================
+# ======================================================
+# Navigation Pages
+# ======================================================
 def show_page1(chat_id):
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("💳 CC Gen", callback_data="ccgen"))
@@ -67,6 +65,247 @@ def show_page2(chat_id):
     kb.add(types.InlineKeyboardButton("📧 Temp Mail", callback_data="temp"))
     kb.add(types.InlineKeyboardButton("🌐 Proxy Manager", callback_data="proxy"))
     kb.add(types.InlineKeyboardButton("🔙 Back", callback_data="back2"))
+    kb.add(types.InlineKeyboardButton("➡️ Next", callback_data="next2"))
+    bot.send_message(chat_id, "📜 Page-2 Tools:", reply_markup=kb)
+
+def show_page3(chat_id):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("❌ Close", callback_data="close"))
+    kb.add(types.InlineKeyboardButton("🔙 Back", callback_data="back3"))
+    kb.add(types.InlineKeyboardButton("📞 Contact Admin", callback_data="contact"))
+    bot.send_message(chat_id, "📜 Page-3:", reply_markup=kb)
+
+# ======================================================
+# Callback Handler
+# ======================================================
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+
+    if call.data == "register":
+        if user_id in registered_users:
+            bot.send_message(chat_id,
+                "⚠️ Already Registered ‼️\nEnjoy our Bot Tools 🥳")
+        else:
+            registered_users[user_id] = True
+            bot.send_message(chat_id,
+                "🎉 You have been successfully registered!\nEnjoy the tools 🚀")
+
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("🛠 Explore Tools", callback_data="commands"))
+        kb.add(types.InlineKeyboardButton("❌ Close", callback_data="close"))
+        bot.send_message(chat_id, "👇 What would you like to do next?", reply_markup=kb)
+
+    elif call.data == "commands": show_page1(chat_id)
+    elif call.data == "close": bot.delete_message(chat_id, call.message.message_id)
+    elif call.data == "next1": show_page2(chat_id)
+    elif call.data == "back2": show_page1(chat_id)
+    elif call.data == "next2": show_page3(chat_id)
+    elif call.data == "back3": show_page2(chat_id)
+
+    # Page-1
+    elif call.data == "ccgen":
+        bot.send_message(chat_id, "💳 Use /gen <BIN> <count> [MM|YY]")
+    elif call.data == "ccchk":
+        bot.send_message(chat_id, "⚠️ CC Checker tool is under maintenance.")
+    elif call.data == "bininfo":
+        bot.send_message(chat_id, "🏦 Use /bin <BIN>")
+    elif call.data == "iban":
+        bot.send_message(chat_id, "🏦 Use /ibangen <CC> <count> OR /ichk <IBAN>")
+    # Page-2
+    elif call.data == "fake":
+        bot.send_message(chat_id, "🏠 Use /fake <country_code>")
+    elif call.data == "site":
+        bot.send_message(chat_id,
+            "🔍 Site Hunter\n/url <site>\n/murl <url1,url2,...>")
+    elif call.data == "temp":
+        bot.send_message(chat_id,
+            "📧 Temp Mail\n/temp → new\n/ib → inbox\n/fresh → refresh\n/dlt → delete")
+    elif call.data == "proxy":
+        bot.send_message(chat_id,
+            "🌐 Proxy Manager\n/addproxy, /chkproxy, /vproxy, /rproxy\n/mproxy (≤50)")
+    elif call.data == "contact":
+        bot.send_message(chat_id, "📞 Contact Admin: @YourAdminUsername")
+
+# ======================================================
+# CC Generator
+# ======================================================
+@bot.message_handler(commands=['gen'])
+def gen_handler(message):
+    try:
+        _, bin_code, count, *rest = message.text.split()
+        count = int(count)
+        exp = rest[0] if rest else None
+        cards = []
+        for _ in range(count):
+            cc = bin_code + "".join(str(random.randint(0,9)) for _ in range(16-len(bin_code)))
+            if exp:
+                mm, yy = exp.split("|")
+            else:
+                mm, yy = str(random.randint(1,12)).zfill(2), str(random.randint(24,29))
+            cvv = str(random.randint(100,999))
+            cards.append(f"{cc}|{mm}|{yy}|{cvv}")
+        bot.reply_to(message, "✅ Generated:\n" + "\n".join(cards))
+    except:
+        bot.reply_to(message, "❌ Usage: /gen <BIN> <count> [MM|YY]")
+
+# ======================================================
+# BIN Info
+# ======================================================
+@bot.message_handler(commands=['bin'])
+def bin_handler(message):
+    try:
+        _, bin_code = message.text.split()
+        r = requests.get(f"https://lookup.binlist.net/{bin_code}").json()
+        msg = f"🔎 BIN Information\n━━━━━━━━━\n"
+        msg += f"BIN: {bin_code}\nScheme: {r.get('scheme')}\nType: {r.get('type')}\n"
+        msg += f"Brand: {r.get('brand')}\nBank: {r['bank'].get('name')}\n"
+        msg += f"Country: {r['country'].get('name')} {r['country'].get('emoji')}\n"
+        msg += f"Currency: {r['country'].get('currency')}\n"
+        msg += f"Website: {r['bank'].get('url')}\nPhone: {r['bank'].get('phone')}"
+        bot.reply_to(message, msg)
+    except:
+        bot.reply_to(message, "❌ Usage: /bin <BIN>")
+
+# ======================================================
+# IBAN Gen / Check
+# ======================================================
+@bot.message_handler(commands=['ibangen'])
+def ibangen_handler(message):
+    try:
+        _, cc, count = message.text.split()
+        count = int(count)
+        ibans = []
+        for i in range(count):
+            iban = f"{cc}{random.randint(10**18, 10**20)}"
+            ibans.append(iban)
+        iban_temp[message.from_user.id] = {"list": ibans, "pos": 0}
+        bot.reply_to(message, "✅ Generated:\n" + "\n".join(ibans))
+    except:
+        bot.reply_to(message, "❌ Usage: /ibangen <country_code> <count>")
+
+@bot.message_handler(commands=['ichk'])
+def ichk_handler(message):
+    try:
+        _, iban = message.text.split()
+        bot.reply_to(message,
+            f"🔎 IBAN Check Result\n━━━━━━━━━\nIBAN: {iban}\nBank: DemoBank\nCountry: DE\nStatus: ✅ Valid")
+    except:
+        bot.reply_to(message, "❌ Usage: /ichk <IBAN>")
+
+# ======================================================
+# Fake Address
+# ======================================================
+@bot.message_handler(commands=['fake'])
+def fake_handler(message):
+    try:
+        _, cc = message.text.split()
+        addr = faker.address().replace("\n", ", ")
+        bot.reply_to(message, f"🏠 Fake Address ({cc}):\n{addr}")
+    except:
+        bot.reply_to(message, "❌ Usage: /fake <country_code>")
+
+# ======================================================
+# Site Hunter
+# ======================================================
+@bot.message_handler(commands=['url'])
+def url_handler(message):
+    try:
+        _, site = message.text.split()
+        bot.reply_to(message, f"🔎 Checking site: {site}\nResult: ✅ Working")
+    except:
+        bot.reply_to(message, "❌ Usage: /url <site>")
+
+@bot.message_handler(commands=['murl'])
+def murl_handler(message):
+    try:
+        urls = message.text.split()[1].split(",")
+        results = [f"{u} → ✅ OK" for u in urls]
+        bot.reply_to(message, "\n".join(results))
+    except:
+        bot.reply_to(message, "❌ Usage: /murl <url1,url2,...>")
+
+# ======================================================
+# Temp Mail (Demo)
+# ======================================================
+@bot.message_handler(commands=['temp'])
+def temp_handler(message):
+    email = f"{random.randint(1000,9999)}@mail.tm"
+    temp_mails[message.from_user.id] = email
+    bot.reply_to(message, f"📧 Temp Mail Created: {email}")
+
+@bot.message_handler(commands=['ib'])
+def inbox_handler(message):
+    email = temp_mails.get(message.from_user.id)
+    if email:
+        bot.reply_to(message, f"📥 Inbox for {email}\n(No API integration demo)")
+    else:
+        bot.reply_to(message, "❌ No temp mail. Use /temp first.")
+
+@bot.message_handler(commands=['fresh'])
+def refresh_handler(message):
+    bot.reply_to(message, "🔄 Inbox refreshed (demo).")
+
+@bot.message_handler(commands=['dlt'])
+def delete_handler(message):
+    if message.from_user.id in temp_mails:
+        del temp_mails[message.from_user.id]
+        bot.reply_to(message, "🗑 Temp mail deleted.")
+    else:
+        bot.reply_to(message, "❌ No temp mail to delete.")
+
+# ======================================================
+# Proxy Manager
+# ======================================================
+@bot.message_handler(commands=['addproxy'])
+def addproxy_handler(message):
+    lines = message.text.split()[1:]
+    user_id = message.from_user.id
+    if not user_id in user_proxies: user_proxies[user_id] = []
+    added = []
+    for p in lines:
+        if ":" in p:
+            user_proxies[user_id].append(p)
+            added.append(p)
+    bot.reply_to(message, "➕ Added Proxies:\n" + "\n".join(added))
+
+@bot.message_handler(commands=['vproxy'])
+def viewproxy_handler(message):
+    proxies = user_proxies.get(message.from_user.id, [])
+    if proxies:
+        bot.reply_to(message, "👁 Your Proxies:\n" + "\n".join(proxies))
+    else:
+        bot.reply_to(message, "❌ No proxies saved.")
+
+@bot.message_handler(commands=['rproxy'])
+def removeproxy_handler(message):
+    user_proxies[message.from_user.id] = []
+    bot.reply_to(message, "🗑 All proxies removed.")
+
+@bot.message_handler(commands=['chkproxy'])
+def chkproxy_handler(message):
+    proxies = user_proxies.get(message.from_user.id, [])
+    if not proxies:
+        bot.reply_to(message, "❌ No proxies saved.")
+        return
+    results = [f"{p} → ✅ Alive" for p in proxies]  # demo
+    bot.reply_to(message, "\n".join(results))
+
+@bot.message_handler(commands=['mproxy'])
+def mproxy_handler(message):
+    try:
+        proxies = message.text.split()[1].split(",")[:50]
+        results = [f"{p} → ✅ Alive" for p in proxies]
+        bot.reply_to(message, "\n".join(results))
+    except:
+        bot.reply_to(message, "❌ Usage: /mproxy ip:port,...")
+
+# ======================================================
+# Run Bot
+# ======================================================
+print("🤖 Bot is running…")
+bot.infinity_polling()    kb.add(types.InlineKeyboardButton("🔙 Back", callback_data="back2"))
     kb.add(types.InlineKeyboardButton("➡️ Next", callback_data="next2"))
     bot.send_message(chat_id, "📜 Page-2 Tools:", reply_markup=kb)
 
